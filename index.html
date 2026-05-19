@@ -13,7 +13,7 @@
             --c2: #ffca3a; /* 黃 */
             --c3: #1982c4; /* 藍 */
             --c4: #8ac926; /* 綠 */
-            --c5: #9b5de5; /* 紫 (進階專屬) */
+            --c5: #9b5de5; /* 紫 */
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -77,7 +77,7 @@
             <ul>
                 <li>目標：用提供的顏色填滿所有空白方格。</li>
                 <li><b style="color:red;">核心規則：</b> 每一橫行、每一直列，都<b style="color:red;">不能有重複的顏色</b>！</li>
-                <li>帶有 🔒 的格子是開局提示，無法更改。你必須靠邏輯推理出其他顏色！</li>
+                <li>帶有 🔒 的格子是開局提示，無法更改。</li>
             </ul>
             <p>第一關 4x4 熱身。第二關 5x5 進階挑戰，<span class="highlight">限時 1 分 30 秒</span>，超時未完成將記錄為 90 秒！</p>
         </div>
@@ -129,7 +129,7 @@
         const MAX_TIME = 90; 
         let loadTimer;
 
-        // 絕對安全的種子版圖 (避免規律的順序排法)
+        // --- 數獨生成核心演算法 (確保合法且可生成多個提示) ---
         const base4 = [
             [1, 2, 3, 4],
             [3, 4, 1, 2],
@@ -144,7 +144,6 @@
             [3, 4, 5, 1, 2]
         ];
 
-        // 陣列洗牌函數
         function shuffleArray(arr) {
             for (let i = arr.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -152,18 +151,17 @@
             }
         }
 
-        // 產生真實邏輯謎題 (封殺規律亂填)
         function generatePuzzle(size, numClues) {
             let grid = size === 4 ? JSON.parse(JSON.stringify(base4)) : JSON.parse(JSON.stringify(base5));
 
-            // 1. 打亂行 (Row)
+            // 打亂行
             let rows = Array.from({length: size}, (_, i) => i);
             shuffleArray(rows);
             let tempGrid = [];
             for(let i=0; i<size; i++) tempGrid.push(grid[rows[i]]);
             grid = tempGrid;
 
-            // 2. 打亂列 (Column)
+            // 打亂列
             let cols = Array.from({length: size}, (_, i) => i);
             shuffleArray(cols);
             for(let r=0; r<size; r++) {
@@ -172,7 +170,7 @@
                 grid[r] = newRow;
             }
 
-            // 3. 打亂顏色對應 (Color Mapping)
+            // 打亂顏色
             let colors = Array.from({length: size}, (_, i) => i + 1);
             let shuffledColors = [...colors];
             shuffleArray(shuffledColors);
@@ -185,14 +183,14 @@
                 }
             }
 
-            // 4. 挑選要留下的提示格
+            // 隨機挑選提示格
             let allCells = [];
             for(let r=0; r<size; r++) {
                 for(let c=0; c<size; c++) {
                     allCells.push({r, c});
                 }
             }
-            shuffleArray(allCells); // 隨機抽籤
+            shuffleArray(allCells);
             let clues = [];
             for(let i=0; i<numClues; i++) {
                 let cell = allCells[i];
@@ -204,6 +202,7 @@
             }
             return clues;
         }
+        // ----------------------------------------------------
 
         function startFlow() {
             const pClass = document.getElementById('player-class').value.trim();
@@ -232,8 +231,8 @@
             document.getElementById('timer').style.display = "none"; 
             document.getElementById('btn-c5').style.display = "none"; 
             
-            // 4x4 遊戲，給予 6 個鎖定提示 (玩家必須填剩下10格)
-            const clues = generatePuzzle(4, 6);
+            // 💡 增加提示：4x4 盤面給予 5 個隨機提示
+            const clues = generatePuzzle(4, 5);
             generateMap(4, clues);
         }
 
@@ -243,7 +242,7 @@
             document.getElementById('timer').style.display = "block";
             document.getElementById('btn-c5').style.display = "block"; 
             
-            // 5x5 遊戲，給予 9 個鎖定提示 (玩家必須填剩下16格)
+            // 💡 增加提示：5x5 盤面給予 9 個隨機提示
             const clues = generatePuzzle(5, 9);
             generateMap(5, clues);
             
@@ -329,27 +328,18 @@
                 return;
             }
 
-            for (let r = 0; r < size; r++) {
+            for (let i = 0; i < size; i++) {
                 let colorsInRow = new Set();
-                for (let c = 0; c < size; c++) {
-                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
-                    if (colorsInRow.has(color)) {
-                        showError(`❌ 錯誤：第 ${r+1} 橫行出現了重複的顏色！`);
-                        return;
-                    }
-                    colorsInRow.add(color);
-                }
-            }
-
-            for (let c = 0; c < size; c++) {
                 let colorsInCol = new Set();
-                for (let r = 0; r < size; r++) {
-                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
-                    if (colorsInCol.has(color)) {
-                        showError(`❌ 錯誤：第 ${c+1} 直列出現了重複的顏色！`);
-                        return;
-                    }
-                    colorsInCol.add(color);
+                for (let j = 0; j < size; j++) {
+                    let rColor = document.getElementById(`cell_${i}_${j}`).dataset.color;
+                    let cColor = document.getElementById(`cell_${j}_${i}`).dataset.color;
+                    
+                    if (colorsInRow.has(rColor)) return showError(`❌ 錯誤：第 ${i+1} 橫行出現了重複的顏色！`);
+                    colorsInRow.add(rColor);
+                    
+                    if (colorsInCol.has(cColor)) return showError(`❌ 錯誤：第 ${i+1} 直列出現了重複的顏色！`);
+                    colorsInCol.add(cColor);
                 }
             }
 
