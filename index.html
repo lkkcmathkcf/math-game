@@ -56,6 +56,10 @@
         .color-btn { width: 50px; height: 50px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); cursor: pointer; }
         .color-btn.selected { border-color: #2c3e50; transform: scale(1.15); }
         
+        /* 橡皮擦按鈕的樣式 */
+        .eraser-btn { width: 50px; height: 50px; border-radius: 50%; border: 4px solid #bdc3c7; background-color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 22px; }
+        .eraser-btn.selected { border-color: #2c3e50; transform: scale(1.15); }
+
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #ecf0f1; }
@@ -78,6 +82,7 @@
                 <li>目標：用提供的顏色填滿所有空白方格。</li>
                 <li><b style="color:red;">核心規則：</b> 每一橫行、每一直列，都<b style="color:red;">不能有重複的顏色</b>！</li>
                 <li>帶有 🔒 的格子是開局提示，無法更改。</li>
+                <li>💡 填錯時，可以點擊 🧽 橡皮擦把格子塗回白色。</li>
             </ul>
             <p>第一關 4x4 熱身。第二關 5x5 進階挑戰，<span class="highlight">限時 1 分 30 秒</span>，超時未完成將記錄為 90 秒！</p>
         </div>
@@ -99,6 +104,7 @@
             <button class="color-btn" style="background-color: var(--c3);" onclick="selectColor('var(--c3)', this)"></button>
             <button class="color-btn" style="background-color: var(--c4);" onclick="selectColor('var(--c4)', this)"></button>
             <button class="color-btn" id="btn-c5" style="background-color: var(--c5); display: none;" onclick="selectColor('var(--c5)', this)"></button>
+            <button class="eraser-btn" title="橡皮擦" onclick="selectColor('erase', this)">🧽</button>
         </div>
 
         <button class="btn-start btn-action" onclick="checkWin()">提交答案</button>
@@ -129,7 +135,7 @@
         const MAX_TIME = 90; 
         let loadTimer;
 
-        // --- 數獨生成核心演算法 (確保合法且可生成多個提示) ---
+        // --- 數獨生成核心演算法 ---
         const base4 = [
             [1, 2, 3, 4],
             [3, 4, 1, 2],
@@ -154,14 +160,12 @@
         function generatePuzzle(size, numClues) {
             let grid = size === 4 ? JSON.parse(JSON.stringify(base4)) : JSON.parse(JSON.stringify(base5));
 
-            // 打亂行
             let rows = Array.from({length: size}, (_, i) => i);
             shuffleArray(rows);
             let tempGrid = [];
             for(let i=0; i<size; i++) tempGrid.push(grid[rows[i]]);
             grid = tempGrid;
 
-            // 打亂列
             let cols = Array.from({length: size}, (_, i) => i);
             shuffleArray(cols);
             for(let r=0; r<size; r++) {
@@ -170,7 +174,6 @@
                 grid[r] = newRow;
             }
 
-            // 打亂顏色
             let colors = Array.from({length: size}, (_, i) => i + 1);
             let shuffledColors = [...colors];
             shuffleArray(shuffledColors);
@@ -183,7 +186,6 @@
                 }
             }
 
-            // 隨機挑選提示格
             let allCells = [];
             for(let r=0; r<size; r++) {
                 for(let c=0; c<size; c++) {
@@ -231,8 +233,7 @@
             document.getElementById('timer').style.display = "none"; 
             document.getElementById('btn-c5').style.display = "none"; 
             
-            // 💡 增加提示：4x4 盤面給予 5 個隨機提示
-            const clues = generatePuzzle(4, 5);
+            const clues = generatePuzzle(4, 5); // 4x4 盤面 5 個提示
             generateMap(4, clues);
         }
 
@@ -242,8 +243,7 @@
             document.getElementById('timer').style.display = "block";
             document.getElementById('btn-c5').style.display = "block"; 
             
-            // 💡 增加提示：5x5 盤面給予 9 個隨機提示
-            const clues = generatePuzzle(5, 9);
+            const clues = generatePuzzle(5, 9); // 5x5 盤面 9 個提示
             generateMap(5, clues);
             
             timeElapsed = 0;
@@ -296,20 +296,28 @@
             }
             document.getElementById('error-msg').style.display = 'none';
             currentColor = "";
-            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+            document.querySelectorAll('.color-btn, .eraser-btn').forEach(b => b.classList.remove('selected'));
         }
 
+        // 修改：選擇顏料或橡皮擦
         function selectColor(color, btn) {
             currentColor = color;
-            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+            document.querySelectorAll('.color-btn, .eraser-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
         }
 
+        // 修改：上色或擦除邏輯
         function colorCell(cell) {
             if (cell.classList.contains('locked')) return; 
-            if (!currentColor) return alert("請先從下方點選一種顏色當顏料！");
-            cell.style.backgroundColor = currentColor;
-            cell.dataset.color = currentColor;
+            if (!currentColor) return alert("請先從下方點選一種顏色或橡皮擦！");
+            
+            if (currentColor === 'erase') {
+                cell.style.backgroundColor = 'white'; // 恢復白色
+                cell.dataset.color = ''; // 清除顏色資料紀錄
+            } else {
+                cell.style.backgroundColor = currentColor;
+                cell.dataset.color = currentColor;
+            }
         }
 
         function checkWin() {
