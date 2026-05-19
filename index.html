@@ -9,12 +9,11 @@
             --bg-color: #f4f7f6;
             --primary: #2c3e50;
             --accent: #e74c3c;
-            /* 5種顏色 */
             --c1: #ff595e; /* 紅 */
             --c2: #ffca3a; /* 黃 */
             --c3: #1982c4; /* 藍 */
             --c4: #8ac926; /* 綠 */
-            --c5: #9b5de5; /* 紫 (進階局專屬) */
+            --c5: #9b5de5; /* 紫 (進階專屬) */
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -50,7 +49,6 @@
         #map-container { display: grid; gap: 4px; background: #34495e; padding: 6px; border-radius: 8px; margin: 0 auto; width: fit-content; }
         .cell { background-color: white; border-radius: 4px; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; }
         
-        /* 鎖定的提示格加上圖標表示不可更改 */
         .cell.locked { cursor: not-allowed; position: relative; }
         .cell.locked::after { content: "🔒"; font-size: 16px; position: absolute; opacity: 0.6; }
         
@@ -79,7 +77,7 @@
             <ul>
                 <li>目標：用提供的顏色填滿所有空白方格。</li>
                 <li><b style="color:red;">核心規則：</b> 每一橫行、每一直列，都<b style="color:red;">不能有重複的顏色</b>！</li>
-                <li>帶有 🔒 的格子是開局提示，無法更改。</li>
+                <li>帶有 🔒 的格子是開局提示，無法更改。你必須靠邏輯推理出其他顏色！</li>
             </ul>
             <p>第一關 4x4 熱身。第二關 5x5 進階挑戰，<span class="highlight">限時 1 分 30 秒</span>，超時未完成將記錄為 90 秒！</p>
         </div>
@@ -128,10 +126,85 @@
         let timeElapsed = 0;
         let timerInterval;
         let mapData = { size: 0 };
-        const MAX_TIME = 90; // 90秒上限
+        const MAX_TIME = 90; 
         let loadTimer;
 
-        // 登入後啟動流程
+        // 絕對安全的種子版圖 (避免規律的順序排法)
+        const base4 = [
+            [1, 2, 3, 4],
+            [3, 4, 1, 2],
+            [4, 3, 2, 1],
+            [2, 1, 4, 3]
+        ];
+        const base5 = [
+            [1, 2, 3, 4, 5],
+            [4, 5, 1, 2, 3],
+            [2, 3, 4, 5, 1],
+            [5, 1, 2, 3, 4],
+            [3, 4, 5, 1, 2]
+        ];
+
+        // 陣列洗牌函數
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+
+        // 產生真實邏輯謎題 (封殺規律亂填)
+        function generatePuzzle(size, numClues) {
+            let grid = size === 4 ? JSON.parse(JSON.stringify(base4)) : JSON.parse(JSON.stringify(base5));
+
+            // 1. 打亂行 (Row)
+            let rows = Array.from({length: size}, (_, i) => i);
+            shuffleArray(rows);
+            let tempGrid = [];
+            for(let i=0; i<size; i++) tempGrid.push(grid[rows[i]]);
+            grid = tempGrid;
+
+            // 2. 打亂列 (Column)
+            let cols = Array.from({length: size}, (_, i) => i);
+            shuffleArray(cols);
+            for(let r=0; r<size; r++) {
+                let newRow = [];
+                for(let c=0; c<size; c++) newRow.push(grid[r][cols[c]]);
+                grid[r] = newRow;
+            }
+
+            // 3. 打亂顏色對應 (Color Mapping)
+            let colors = Array.from({length: size}, (_, i) => i + 1);
+            let shuffledColors = [...colors];
+            shuffleArray(shuffledColors);
+            let colorMap = {};
+            for(let i=0; i<size; i++) colorMap[colors[i]] = shuffledColors[i];
+
+            for(let r=0; r<size; r++) {
+                for(let c=0; c<size; c++) {
+                    grid[r][c] = colorMap[grid[r][c]];
+                }
+            }
+
+            // 4. 挑選要留下的提示格
+            let allCells = [];
+            for(let r=0; r<size; r++) {
+                for(let c=0; c<size; c++) {
+                    allCells.push({r, c});
+                }
+            }
+            shuffleArray(allCells); // 隨機抽籤
+            let clues = [];
+            for(let i=0; i<numClues; i++) {
+                let cell = allCells[i];
+                clues.push({
+                    r: cell.r,
+                    c: cell.c,
+                    color: `var(--c${grid[cell.r][cell.c]})`
+                });
+            }
+            return clues;
+        }
+
         function startFlow() {
             const pClass = document.getElementById('player-class').value.trim();
             const pId = document.getElementById('player-id').value.trim();
@@ -151,45 +224,16 @@
             }, 1000);
         }
 
-        // 產生隨機提示格
-        function generateRandomClues(size, numClues) {
-            let clues = [];
-            let availableCells = [];
-            // 建立所有座標清單
-            for (let r = 0; r < size; r++) {
-                for (let c = 0; c < size; c++) {
-                    availableCells.push({r, c});
-                }
-            }
-            // 建立可用顏色清單
-            let availableColors = [];
-            for(let i=1; i<=size; i++) availableColors.push(`var(--c${i})`);
-
-            // 打亂陣列順序
-            availableCells.sort(() => Math.random() - 0.5);
-            availableColors.sort(() => Math.random() - 0.5);
-
-            // 取出指定數量的提示 (確保位置不同、顏色不同，符合遊戲規則)
-            for(let i=0; i<numClues; i++) {
-                clues.push({
-                    r: availableCells[i].r,
-                    c: availableCells[i].c,
-                    color: availableColors[i]
-                });
-            }
-            return clues;
-        }
-
         function startBeginner() {
-            if(loadTimer) clearInterval(loadTimer); // 避免手動跳過時計時器還在跑
+            if(loadTimer) clearInterval(loadTimer); 
             switchScreen('tutorial-screen', 'game-screen');
             currentMode = 'beginner';
             document.getElementById('level-title').innerText = "初階挑戰 (4x4)";
             document.getElementById('timer').style.display = "none"; 
             document.getElementById('btn-c5').style.display = "none"; 
             
-            // 初階：4x4，1 個隨機提示
-            const clues = generateRandomClues(4, 1);
+            // 4x4 遊戲，給予 6 個鎖定提示 (玩家必須填剩下10格)
+            const clues = generatePuzzle(4, 6);
             generateMap(4, clues);
         }
 
@@ -199,18 +243,16 @@
             document.getElementById('timer').style.display = "block";
             document.getElementById('btn-c5').style.display = "block"; 
             
-            // 進階：5x5，2 個隨機提示
-            const clues = generateRandomClues(5, 2);
+            // 5x5 遊戲，給予 9 個鎖定提示 (玩家必須填剩下16格)
+            const clues = generatePuzzle(5, 9);
             generateMap(5, clues);
             
-            // 開始計時
             timeElapsed = 0;
             updateTimerDisplay();
             timerInterval = setInterval(() => {
                 timeElapsed++;
                 updateTimerDisplay();
                 
-                // 超時判定 (90秒)
                 if (timeElapsed >= MAX_TIME) {
                     clearInterval(timerInterval);
                     alert("⏳ 時間到！未能在限時內完成，記錄為 90 秒。");
@@ -242,7 +284,6 @@
                     cell.style.height = `${cellSize}px`;
                     cell.id = `cell_${r}_${c}`;
                     
-                    // 檢查是否為鎖定提示格
                     const lockedInfo = lockedCells.find(d => d.r === r && d.c === c);
                     if (lockedInfo) {
                         cell.classList.add('locked');
@@ -267,101 +308,4 @@
 
         function colorCell(cell) {
             if (cell.classList.contains('locked')) return; 
-            if (!currentColor) return alert("請先從下方點選一種顏色當顏料！");
-            cell.style.backgroundColor = currentColor;
-            cell.dataset.color = currentColor;
-        }
-
-        function checkWin() {
-            const size = mapData.size;
-            let allFilled = true;
-
-            // 1. 檢查是否全部填滿
-            for (let r = 0; r < size; r++) {
-                for (let c = 0; c < size; c++) {
-                    if (!document.getElementById(`cell_${r}_${c}`).dataset.color) {
-                        allFilled = false;
-                    }
-                }
-            }
-            if (!allFilled) {
-                showError("還有格子空著喔！請填滿所有格子。");
-                return;
-            }
-
-            // 2. 檢查行 (Row) 是否有重複
-            for (let r = 0; r < size; r++) {
-                let colorsInRow = new Set();
-                for (let c = 0; c < size; c++) {
-                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
-                    if (colorsInRow.has(color)) {
-                        showError(`❌ 錯誤：第 ${r+1} 橫行出現了重複的顏色！`);
-                        return;
-                    }
-                    colorsInRow.add(color);
-                }
-            }
-
-            // 3. 檢查列 (Column) 是否有重複
-            for (let c = 0; c < size; c++) {
-                let colorsInCol = new Set();
-                for (let r = 0; r < size; r++) {
-                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
-                    if (colorsInCol.has(color)) {
-                        showError(`❌ 錯誤：第 ${c+1} 直列出現了重複的顏色！`);
-                        return;
-                    }
-                    colorsInCol.add(color);
-                }
-            }
-
-            // 成功過關
-            document.getElementById('error-msg').style.display = "none";
-            if (currentMode === 'beginner') {
-                alert("🎉 熱身局成功！接下來進入進階局（限時 90 秒）！");
-                startAdvanced();
-            } else {
-                clearInterval(timerInterval);
-                document.getElementById('result-title').innerText = "🎉 智商壓制！挑戰成功！";
-                saveAndShowResult(timeElapsed);
-            }
-        }
-
-        function showError(msg) {
-            const errorMsg = document.getElementById('error-msg');
-            errorMsg.innerText = msg;
-            errorMsg.style.display = "block";
-            errorMsg.style.transform = "translateX(-5px)";
-            setTimeout(() => errorMsg.style.transform = "translateX(5px)", 100);
-            setTimeout(() => errorMsg.style.transform = "translateX(0)", 200);
-        }
-
-        function saveAndShowResult(finalTime) {
-            switchScreen('game-screen', 'result-screen');
-            document.getElementById('final-time-display').innerText = `你的成績：${finalTime} 秒`;
-
-            // 取出並更新排行榜 (時間短的在前)
-            let leaderboard = JSON.parse(localStorage.getItem('sudokuLeaderboard')) || [];
-            leaderboard.push({ class: player.class, id: player.id, time: finalTime });
-            leaderboard.sort((a, b) => a.time - b.time);
-            leaderboard = leaderboard.slice(0, 5);
-            localStorage.setItem('sudokuLeaderboard', JSON.stringify(leaderboard));
-
-            // 顯示排行榜
-            const tbody = document.getElementById('leaderboard-body');
-            tbody.innerHTML = '';
-            leaderboard.forEach((entry, index) => {
-                const tr = document.createElement('tr');
-                let rankStr = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1;
-                tr.innerHTML = `<td>${rankStr}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function switchScreen(hideId, showId) {
-            document.getElementById(hideId).classList.remove('active');
-            document.getElementById(showId).classList.add('active');
-        }
-    </script>
-</body>
-</html>
+            if (!currentColor)
