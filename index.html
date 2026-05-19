@@ -308,4 +308,95 @@
 
         function colorCell(cell) {
             if (cell.classList.contains('locked')) return; 
-            if (!currentColor)
+            if (!currentColor) return alert("請先從下方點選一種顏色當顏料！");
+            cell.style.backgroundColor = currentColor;
+            cell.dataset.color = currentColor;
+        }
+
+        function checkWin() {
+            const size = mapData.size;
+            let allFilled = true;
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (!document.getElementById(`cell_${r}_${c}`).dataset.color) {
+                        allFilled = false;
+                    }
+                }
+            }
+            if (!allFilled) {
+                showError("還有格子空著喔！請填滿所有格子。");
+                return;
+            }
+
+            for (let r = 0; r < size; r++) {
+                let colorsInRow = new Set();
+                for (let c = 0; c < size; c++) {
+                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
+                    if (colorsInRow.has(color)) {
+                        showError(`❌ 錯誤：第 ${r+1} 橫行出現了重複的顏色！`);
+                        return;
+                    }
+                    colorsInRow.add(color);
+                }
+            }
+
+            for (let c = 0; c < size; c++) {
+                let colorsInCol = new Set();
+                for (let r = 0; r < size; r++) {
+                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
+                    if (colorsInCol.has(color)) {
+                        showError(`❌ 錯誤：第 ${c+1} 直列出現了重複的顏色！`);
+                        return;
+                    }
+                    colorsInCol.add(color);
+                }
+            }
+
+            document.getElementById('error-msg').style.display = "none";
+            if (currentMode === 'beginner') {
+                alert("🎉 熱身局成功！接下來進入進階局（限時 90 秒）！");
+                startAdvanced();
+            } else {
+                clearInterval(timerInterval);
+                document.getElementById('result-title').innerText = "🎉 智商壓制！挑戰成功！";
+                saveAndShowResult(timeElapsed);
+            }
+        }
+
+        function showError(msg) {
+            const errorMsg = document.getElementById('error-msg');
+            errorMsg.innerText = msg;
+            errorMsg.style.display = "block";
+            errorMsg.style.transform = "translateX(-5px)";
+            setTimeout(() => errorMsg.style.transform = "translateX(5px)", 100);
+            setTimeout(() => errorMsg.style.transform = "translateX(0)", 200);
+        }
+
+        function saveAndShowResult(finalTime) {
+            switchScreen('game-screen', 'result-screen');
+            document.getElementById('final-time-display').innerText = `你的成績：${finalTime} 秒`;
+
+            let leaderboard = JSON.parse(localStorage.getItem('sudokuLeaderboard')) || [];
+            leaderboard.push({ class: player.class, id: player.id, time: finalTime });
+            leaderboard.sort((a, b) => a.time - b.time);
+            leaderboard = leaderboard.slice(0, 5);
+            localStorage.setItem('sudokuLeaderboard', JSON.stringify(leaderboard));
+
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = '';
+            leaderboard.forEach((entry, index) => {
+                const tr = document.createElement('tr');
+                let rankStr = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1;
+                tr.innerHTML = `<td>${rankStr}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function switchScreen(hideId, showId) {
+            document.getElementById(hideId).classList.remove('active');
+            document.getElementById(showId).classList.add('active');
+        }
+    </script>
+</body>
+</html>
