@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>色彩數獨：邏輯爭奪戰</title>
+    <title>色彩數獨：極限挑戰</title>
     <style>
         :root {
             --bg-color: #f4f7f6;
@@ -14,7 +14,7 @@
             --c2: #ffca3a; /* 黃 */
             --c3: #1982c4; /* 藍 */
             --c4: #8ac926; /* 綠 */
-            --c5: #9b5de5; /* 紫 (地獄局專屬) */
+            --c5: #9b5de5; /* 紫 (進階局專屬) */
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -52,10 +52,10 @@
         
         /* 鎖定的提示格加上圖標表示不可更改 */
         .cell.locked { cursor: not-allowed; position: relative; }
-        .cell.locked::after { content: "🔒"; font-size: 14px; position: absolute; opacity: 0.5; }
+        .cell.locked::after { content: "🔒"; font-size: 16px; position: absolute; opacity: 0.6; }
         
         .palette { display: flex; justify-content: center; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
-        .color-btn { width: 50px; height: 50px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .color-btn { width: 50px; height: 50px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); cursor: pointer; }
         .color-btn.selected { border-color: #2c3e50; transform: scale(1.15); }
         
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -66,31 +66,30 @@
 <body>
 
     <div id="login-screen" class="screen active box">
-        <h1>色彩數獨：極限邏輯戰</h1>
-        <p>請輸入資料以記錄你的地獄局時間</p>
-        <input type="text" id="player-class" placeholder="請輸入班別 (例: 2A)" required>
+        <h1>色彩數獨：極限挑戰</h1>
+        <p>請輸入資料以記錄你的挑戰時間</p>
+        <input type="text" id="player-class" placeholder="請輸入班別 (例: 3A)" required>
         <input type="text" id="player-id" placeholder="請輸入學號 (例: 15)" required>
         <button class="btn-start" onclick="startFlow()">準備挑戰</button>
     </div>
 
     <div id="tutorial-screen" class="screen box">
-        <h2>📜 遊戲規則載入中...</h2>
+        <h2>📜 遊戲規則</h2>
         <div class="tutorial-text">
-            <p>這不是普通的填色遊戲，這是<span class="highlight">色彩數獨 (拉丁方陣)</span>！</p>
             <ul>
                 <li>目標：用提供的顏色填滿所有空白方格。</li>
-                <li><b style="color:red;">絕對規則：</b> 每一橫行、每一直列，都<b style="color:red;">不能有重複的顏色</b>！</li>
-                <li>帶有 🔒 的格子是初始線索，無法更改。</li>
+                <li><b style="color:red;">核心規則：</b> 每一橫行、每一直列，都<b style="color:red;">不能有重複的顏色</b>！</li>
+                <li>帶有 🔒 的格子是開局提示，無法更改。</li>
             </ul>
-            <p>熱身局為 4x4 (4色)，地獄局將升級為 5x5 (5色) 並開始計時！</p>
+            <p>第一關 4x4 熱身。第二關 5x5 進階挑戰，<span class="highlight">限時 1 分 30 秒</span>，超時未完成將記錄為 90 秒！</p>
         </div>
-        <p style="color: #7f8c8d;">進入遊戲倒數：<span id="loading-time">15</span> 秒</p>
-        <button class="btn-skip" onclick="startBeginner()">我懂了，直接開始</button>
+        <p style="color: #7f8c8d;">進入遊戲倒數：<span id="loading-time">10</span> 秒</p>
+        <button class="btn-skip" onclick="startBeginner()">跳過說明直接開始</button>
     </div>
 
     <div id="game-screen" class="screen box">
         <div class="header-info">
-            <span id="level-title">初階挑戰 (4x4 暖身)</span>
+            <span id="level-title">初階挑戰 (4x4)</span>
             <span id="timer">00:00</span>
         </div>
         
@@ -109,10 +108,10 @@
     </div>
 
     <div id="result-screen" class="screen box">
-        <h1>🎉 智商壓制！挑戰成功！</h1>
-        <h2 id="final-time-display">你的地獄局時間：--:--</h2>
+        <h1 id="result-title">🎉 挑戰結束！</h1>
+        <h2 id="final-time-display">你的成績：-- 秒</h2>
         
-        <h3>🏆 邏輯大師風雲榜 (Top 5)</h3>
+        <h3>🏆 英雄榜 (Top 5)</h3>
         <table>
             <thead>
                 <tr><th>名次</th><th>班別</th><th>學號</th><th>時間 (秒)</th></tr>
@@ -128,21 +127,11 @@
         let currentMode = "";
         let timeElapsed = 0;
         let timerInterval;
-        let mapData = { size: 0, locked: [] };
+        let mapData = { size: 0 };
+        const MAX_TIME = 90; // 90秒上限
+        let loadTimer;
 
-        // 題庫設計 (鎖定的提示格)
-        const beginnerLevels = [
-            // 4x4 題目
-            [ {r:0, c:0, color:'var(--c1)'}, {r:1, c:2, color:'var(--c2)'}, {r:2, c:1, color:'var(--c3)'}, {r:3, c:3, color:'var(--c4)'} ]
-        ];
-
-        const advancedLevels = [
-            // 5x5 地獄題目庫 (隨機抽一題)
-            [ {r:0, c:1, color:'var(--c2)'}, {r:1, c:4, color:'var(--c3)'}, {r:2, c:2, color:'var(--c1)'}, {r:3, c:0, color:'var(--c5)'}, {r:4, c:3, color:'var(--c4)'} ],
-            [ {r:0, c:0, color:'var(--c1)'}, {r:1, c:1, color:'var(--c2)'}, {r:2, c:2, color:'var(--c3)'}, {r:3, c:3, color:'var(--c4)'}, {r:4, c:4, color:'var(--c5)'} ],
-            [ {r:0, c:3, color:'var(--c4)'}, {r:1, c:0, color:'var(--c5)'}, {r:2, c:4, color:'var(--c2)'}, {r:3, c:1, color:'var(--c1)'}, {r:4, c:2, color:'var(--c3)'} ]
-        ];
-
+        // 登入後啟動流程
         function startFlow() {
             const pClass = document.getElementById('player-class').value.trim();
             const pId = document.getElementById('player-id').value.trim();
@@ -151,8 +140,8 @@
             player = { class: pClass, id: pId };
             switchScreen('login-screen', 'tutorial-screen');
             
-            let timeLeft = 15;
-            const loadTimer = setInterval(() => {
+            let timeLeft = 10;
+            loadTimer = setInterval(() => {
                 timeLeft--;
                 document.getElementById('loading-time').innerText = timeLeft;
                 if(timeLeft <= 0) {
@@ -162,40 +151,88 @@
             }, 1000);
         }
 
+        // 產生隨機提示格
+        function generateRandomClues(size, numClues) {
+            let clues = [];
+            let availableCells = [];
+            // 建立所有座標清單
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    availableCells.push({r, c});
+                }
+            }
+            // 建立可用顏色清單
+            let availableColors = [];
+            for(let i=1; i<=size; i++) availableColors.push(`var(--c${i})`);
+
+            // 打亂陣列順序
+            availableCells.sort(() => Math.random() - 0.5);
+            availableColors.sort(() => Math.random() - 0.5);
+
+            // 取出指定數量的提示 (確保位置不同、顏色不同，符合遊戲規則)
+            for(let i=0; i<numClues; i++) {
+                clues.push({
+                    r: availableCells[i].r,
+                    c: availableCells[i].c,
+                    color: availableColors[i]
+                });
+            }
+            return clues;
+        }
+
         function startBeginner() {
+            if(loadTimer) clearInterval(loadTimer); // 避免手動跳過時計時器還在跑
             switchScreen('tutorial-screen', 'game-screen');
             currentMode = 'beginner';
-            document.getElementById('level-title').innerText = "初階挑戰 (4x4 暖身局)";
+            document.getElementById('level-title').innerText = "初階挑戰 (4x4)";
             document.getElementById('timer').style.display = "none"; 
-            document.getElementById('btn-c5').style.display = "none"; // 隱藏第五色
+            document.getElementById('btn-c5').style.display = "none"; 
             
-            generateMap(4, beginnerLevels[0]);
+            // 初階：4x4，1 個隨機提示
+            const clues = generateRandomClues(4, 1);
+            generateMap(4, clues);
         }
 
         function startAdvanced() {
             currentMode = 'advanced';
-            document.getElementById('level-title').innerText = "進階挑戰 (5x5 地獄局)";
+            document.getElementById('level-title').innerText = "進階挑戰 (5x5)";
             document.getElementById('timer').style.display = "block";
-            document.getElementById('btn-c5').style.display = "block"; // 顯示第五色，紫氣東來
+            document.getElementById('btn-c5').style.display = "block"; 
             
-            const randomLevel = advancedLevels[Math.floor(Math.random() * advancedLevels.length)];
-            generateMap(5, randomLevel);
+            // 進階：5x5，2 個隨機提示
+            const clues = generateRandomClues(5, 2);
+            generateMap(5, clues);
             
+            // 開始計時
             timeElapsed = 0;
-            document.getElementById('timer').innerText = "0 秒";
+            updateTimerDisplay();
             timerInterval = setInterval(() => {
                 timeElapsed++;
-                document.getElementById('timer').innerText = timeElapsed + " 秒";
+                updateTimerDisplay();
+                
+                // 超時判定 (90秒)
+                if (timeElapsed >= MAX_TIME) {
+                    clearInterval(timerInterval);
+                    alert("⏳ 時間到！未能在限時內完成，記錄為 90 秒。");
+                    document.getElementById('result-title').innerText = "⏳ 時間到！";
+                    saveAndShowResult(MAX_TIME);
+                }
             }, 1000);
         }
 
+        function updateTimerDisplay() {
+            let m = Math.floor(timeElapsed / 60);
+            let s = timeElapsed % 60;
+            document.getElementById('timer').innerText = `0${m}:${s.toString().padStart(2, '0')}`;
+        }
+
         function generateMap(size, lockedCells) {
-            mapData = { size, locked: lockedCells };
+            mapData = { size };
             const container = document.getElementById('map-container');
             container.innerHTML = '';
             container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             
-            const cellSize = size === 4 ? 75 : 60; // 配合螢幕調整大小
+            const cellSize = size === 4 ? 75 : 65; 
 
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
@@ -229,18 +266,17 @@
         }
 
         function colorCell(cell) {
-            if (cell.classList.contains('locked')) return; // 鎖定格不能改
+            if (cell.classList.contains('locked')) return; 
             if (!currentColor) return alert("請先從下方點選一種顏色當顏料！");
             cell.style.backgroundColor = currentColor;
             cell.dataset.color = currentColor;
         }
 
         function checkWin() {
-            const errorMsg = document.getElementById('error-msg');
             const size = mapData.size;
             let allFilled = true;
 
-            // 檢查是否全部填滿
+            // 1. 檢查是否全部填滿
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
                     if (!document.getElementById(`cell_${r}_${c}`).dataset.color) {
@@ -253,7 +289,7 @@
                 return;
             }
 
-            // 檢查行 (Row) 是否有重複
+            // 2. 檢查行 (Row) 是否有重複
             for (let r = 0; r < size; r++) {
                 let colorsInRow = new Set();
                 for (let c = 0; c < size; c++) {
@@ -266,7 +302,7 @@
                 }
             }
 
-            // 檢查列 (Column) 是否有重複
+            // 3. 檢查列 (Column) 是否有重複
             for (let c = 0; c < size; c++) {
                 let colorsInCol = new Set();
                 for (let r = 0; r < size; r++) {
@@ -280,13 +316,14 @@
             }
 
             // 成功過關
-            errorMsg.style.display = "none";
+            document.getElementById('error-msg').style.display = "none";
             if (currentMode === 'beginner') {
-                alert("🎉 熱身局完美破解！深呼吸，真正的地獄局要開始了！");
+                alert("🎉 熱身局成功！接下來進入進階局（限時 90 秒）！");
                 startAdvanced();
             } else {
                 clearInterval(timerInterval);
-                saveAndShowResult();
+                document.getElementById('result-title').innerText = "🎉 智商壓制！挑戰成功！";
+                saveAndShowResult(timeElapsed);
             }
         }
 
@@ -294,27 +331,27 @@
             const errorMsg = document.getElementById('error-msg');
             errorMsg.innerText = msg;
             errorMsg.style.display = "block";
-            // 讓錯誤訊息抖動一下吸引注意
             errorMsg.style.transform = "translateX(-5px)";
             setTimeout(() => errorMsg.style.transform = "translateX(5px)", 100);
             setTimeout(() => errorMsg.style.transform = "translateX(0)", 200);
         }
 
-        function saveAndShowResult() {
+        function saveAndShowResult(finalTime) {
             switchScreen('game-screen', 'result-screen');
-            document.getElementById('final-time-display').innerText = `地獄局完成時間：${timeElapsed} 秒`;
+            document.getElementById('final-time-display').innerText = `你的成績：${finalTime} 秒`;
 
-            let leaderboard = JSON.parse(localStorage.getItem('sudokuColorLeaderboard')) || [];
-            leaderboard.push({ class: player.class, id: player.id, time: timeElapsed });
+            // 取出並更新排行榜 (時間短的在前)
+            let leaderboard = JSON.parse(localStorage.getItem('sudokuLeaderboard')) || [];
+            leaderboard.push({ class: player.class, id: player.id, time: finalTime });
             leaderboard.sort((a, b) => a.time - b.time);
             leaderboard = leaderboard.slice(0, 5);
-            localStorage.setItem('sudokuColorLeaderboard', JSON.stringify(leaderboard));
+            localStorage.setItem('sudokuLeaderboard', JSON.stringify(leaderboard));
 
+            // 顯示排行榜
             const tbody = document.getElementById('leaderboard-body');
             tbody.innerHTML = '';
             leaderboard.forEach((entry, index) => {
                 const tr = document.createElement('tr');
-                // 前三名加上獎盃圖案
                 let rankStr = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1;
                 tr.innerHTML = `<td>${rankStr}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
                 tbody.appendChild(tr);
