@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>四色領地：極限爭奪戰</title>
+    <title>色彩數獨：邏輯爭奪戰</title>
     <style>
         :root {
             --bg-color: #f4f7f6;
             --primary: #2c3e50;
             --accent: #e74c3c;
-            /* 四色定理顏色 */
+            /* 5種顏色 */
             --c1: #ff595e; /* 紅 */
             --c2: #ffca3a; /* 黃 */
             --c3: #1982c4; /* 藍 */
             --c4: #8ac926; /* 綠 */
+            --c5: #9b5de5; /* 紫 (地獄局專屬) */
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -40,24 +41,23 @@
         .btn-skip { background-color: #95a5a6; color: white; }
         .btn-action { background-color: var(--accent); color: white; width: 100%; margin-top: 20px; }
         
-        /* 教學畫面 */
         .tutorial-text { font-size: 18px; line-height: 1.6; text-align: left; }
         .highlight { color: var(--accent); font-weight: bold; }
         
-        /* 遊戲區域 */
         .header-info { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
         #timer { color: var(--accent); font-size: 24px; }
         
-        #map-container { display: grid; gap: 4px; background: #34495e; padding: 4px; border-radius: 8px; margin: 0 auto; }
-        .cell { background-color: white; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
-        .cell.disabled { background-color: #34495e; cursor: not-allowed; } /* 挖空的區塊 */
+        #map-container { display: grid; gap: 4px; background: #34495e; padding: 6px; border-radius: 8px; margin: 0 auto; width: fit-content; }
+        .cell { background-color: white; border-radius: 4px; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; }
         
-        /* 調色盤 */
-        .palette { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+        /* 鎖定的提示格加上圖標表示不可更改 */
+        .cell.locked { cursor: not-allowed; position: relative; }
+        .cell.locked::after { content: "🔒"; font-size: 14px; position: absolute; opacity: 0.5; }
+        
+        .palette { display: flex; justify-content: center; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
         .color-btn { width: 50px; height: 50px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .color-btn.selected { border-color: #2c3e50; transform: scale(1.1); }
+        .color-btn.selected { border-color: #2c3e50; transform: scale(1.15); }
         
-        /* 排行榜 */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #ecf0f1; }
@@ -66,84 +66,87 @@
 <body>
 
     <div id="login-screen" class="screen active box">
-        <h1>四色領地：極限爭奪戰</h1>
-        <p>請輸入資料以記錄你的挑戰時間</p>
-        <input type="text" id="player-class" placeholder="請輸入班別 (例: 1A)" required>
+        <h1>色彩數獨：極限邏輯戰</h1>
+        <p>請輸入資料以記錄你的地獄局時間</p>
+        <input type="text" id="player-class" placeholder="請輸入班別 (例: 2A)" required>
         <input type="text" id="player-id" placeholder="請輸入學號 (例: 15)" required>
-        <button class="btn-start" onclick="startFlow()">開始挑戰</button>
+        <button class="btn-start" onclick="startFlow()">準備挑戰</button>
     </div>
 
     <div id="tutorial-screen" class="screen box">
         <h2>📜 遊戲規則載入中...</h2>
         <div class="tutorial-text">
-            <p>歡迎來到四色領地！你的任務是用四種顏色塗滿地圖。</p>
-            <p class="highlight">⚠️ 黃金法則：</p>
+            <p>這不是普通的填色遊戲，這是<span class="highlight">色彩數獨 (拉丁方陣)</span>！</p>
             <ul>
-                <li>只要是共用「同一條邊界」(上下左右) 的區塊，<b style="color:red;">絕對不能同色！</b></li>
-                <li>如果只是角對角「頂點」碰到 (斜角)，則<b style="color:green;">可以同色！</b></li>
+                <li>目標：用提供的顏色填滿所有空白方格。</li>
+                <li><b style="color:red;">絕對規則：</b> 每一橫行、每一直列，都<b style="color:red;">不能有重複的顏色</b>！</li>
+                <li>帶有 🔒 的格子是初始線索，無法更改。</li>
             </ul>
-            <p>第一關是熱身局，第二關地獄局將會計時並列入排行榜。</p>
+            <p>熱身局為 4x4 (4色)，地獄局將升級為 5x5 (5色) 並開始計時！</p>
         </div>
         <p style="color: #7f8c8d;">進入遊戲倒數：<span id="loading-time">15</span> 秒</p>
-        <button class="btn-skip" onclick="startBeginner()">跳過說明直接開始</button>
+        <button class="btn-skip" onclick="startBeginner()">我懂了，直接開始</button>
     </div>
 
     <div id="game-screen" class="screen box">
         <div class="header-info">
-            <span id="level-title">初階挑戰 (熱身局)</span>
+            <span id="level-title">初階挑戰 (4x4 暖身)</span>
             <span id="timer">00:00</span>
         </div>
         
         <div id="map-container"></div>
         
-        <div class="palette">
+        <div class="palette" id="palette-container">
             <button class="color-btn" style="background-color: var(--c1);" onclick="selectColor('var(--c1)', this)"></button>
             <button class="color-btn" style="background-color: var(--c2);" onclick="selectColor('var(--c2)', this)"></button>
             <button class="color-btn" style="background-color: var(--c3);" onclick="selectColor('var(--c3)', this)"></button>
             <button class="color-btn" style="background-color: var(--c4);" onclick="selectColor('var(--c4)', this)"></button>
+            <button class="color-btn" id="btn-c5" style="background-color: var(--c5); display: none;" onclick="selectColor('var(--c5)', this)"></button>
         </div>
 
-        <button class="btn-start btn-action" onclick="checkWin()">檢查並完成</button>
-        <p id="error-msg" style="color: red; font-weight: bold; display: none;"></p>
+        <button class="btn-start btn-action" onclick="checkWin()">提交答案</button>
+        <p id="error-msg" style="color: red; font-weight: bold; display: none; margin-top: 15px;"></p>
     </div>
 
     <div id="result-screen" class="screen box">
-        <h1>🎉 挑戰完成！</h1>
-        <h2 id="final-time-display">你的時間：--:--</h2>
+        <h1>🎉 智商壓制！挑戰成功！</h1>
+        <h2 id="final-time-display">你的地獄局時間：--:--</h2>
         
-        <h3>🏆 地獄局風雲榜 (Top 5)</h3>
+        <h3>🏆 邏輯大師風雲榜 (Top 5)</h3>
         <table>
             <thead>
                 <tr><th>名次</th><th>班別</th><th>學號</th><th>時間 (秒)</th></tr>
             </thead>
-            <tbody id="leaderboard-body">
-                </tbody>
+            <tbody id="leaderboard-body"></tbody>
         </table>
-        <button class="btn-start" onclick="location.reload()" style="margin-top: 20px;">回到首頁換下一位</button>
+        <button class="btn-start" onclick="location.reload()" style="margin-top: 20px;">換下一位挑戰者</button>
     </div>
 
     <script>
-        // 系統變數
         let player = { class: "", id: "" };
         let currentColor = "";
-        let currentMode = ""; // 'beginner' 或 'advanced'
+        let currentMode = "";
         let timeElapsed = 0;
         let timerInterval;
-        let mapData = { rows: 0, cols: 0, disabled: [] };
+        let mapData = { size: 0, locked: [] };
 
-        // 進階版地圖庫 (5種變化，陣列內為要挖空的座標 [row, col])
-        const advancedMaps = [
-            [], // Map 1: 完整的 5x5
-            [[0,0], [4,4], [0,4], [4,0]], // Map 2: 砍掉四個角落 (21格)
-            [[2,2], [1,1], [3,3]], // Map 3: 中間破洞 (22格)
-            [[0,2], [1,2], [3,2], [4,2]], // Map 4: 被切分的 H 型 (21格)
-            [[1,0], [1,4], [3,0], [3,4], [2,2]] // Map 5: 十字星型 (20格)
+        // 題庫設計 (鎖定的提示格)
+        const beginnerLevels = [
+            // 4x4 題目
+            [ {r:0, c:0, color:'var(--c1)'}, {r:1, c:2, color:'var(--c2)'}, {r:2, c:1, color:'var(--c3)'}, {r:3, c:3, color:'var(--c4)'} ]
+        ];
+
+        const advancedLevels = [
+            // 5x5 地獄題目庫 (隨機抽一題)
+            [ {r:0, c:1, color:'var(--c2)'}, {r:1, c:4, color:'var(--c3)'}, {r:2, c:2, color:'var(--c1)'}, {r:3, c:0, color:'var(--c5)'}, {r:4, c:3, color:'var(--c4)'} ],
+            [ {r:0, c:0, color:'var(--c1)'}, {r:1, c:1, color:'var(--c2)'}, {r:2, c:2, color:'var(--c3)'}, {r:3, c:3, color:'var(--c4)'}, {r:4, c:4, color:'var(--c5)'} ],
+            [ {r:0, c:3, color:'var(--c4)'}, {r:1, c:0, color:'var(--c5)'}, {r:2, c:4, color:'var(--c2)'}, {r:3, c:1, color:'var(--c1)'}, {r:4, c:2, color:'var(--c3)'} ]
         ];
 
         function startFlow() {
             const pClass = document.getElementById('player-class').value.trim();
             const pId = document.getElementById('player-id').value.trim();
-            if(!pClass || !pId) return alert("請輸入班別與學號！");
+            if(!pClass || !pId) return alert("同學，請輸入班別與學號喔！");
             
             player = { class: pClass, id: pId };
             switchScreen('login-screen', 'tutorial-screen');
@@ -154,9 +157,7 @@
                 document.getElementById('loading-time').innerText = timeLeft;
                 if(timeLeft <= 0) {
                     clearInterval(loadTimer);
-                    if(document.getElementById('tutorial-screen').classList.contains('active')){
-                        startBeginner();
-                    }
+                    if(document.getElementById('tutorial-screen').classList.contains('active')) startBeginner();
                 }
             }, 1000);
         }
@@ -164,23 +165,22 @@
         function startBeginner() {
             switchScreen('tutorial-screen', 'game-screen');
             currentMode = 'beginner';
-            document.getElementById('level-title').innerText = "初階挑戰 (熱身局)";
+            document.getElementById('level-title').innerText = "初階挑戰 (4x4 暖身局)";
             document.getElementById('timer').style.display = "none"; 
+            document.getElementById('btn-c5').style.display = "none"; // 隱藏第五色
             
-            // 生成初階地圖 (3x4 = 12格)
-            generateMap(3, 4, []);
+            generateMap(4, beginnerLevels[0]);
         }
 
         function startAdvanced() {
             currentMode = 'advanced';
-            document.getElementById('level-title').innerText = "進階挑戰 (地獄局)";
+            document.getElementById('level-title').innerText = "進階挑戰 (5x5 地獄局)";
             document.getElementById('timer').style.display = "block";
+            document.getElementById('btn-c5').style.display = "block"; // 顯示第五色，紫氣東來
             
-            // 隨機挑選一張進階地圖 (5x5)
-            const randomMapIndex = Math.floor(Math.random() * advancedMaps.length);
-            generateMap(5, 5, advancedMaps[randomMapIndex]);
+            const randomLevel = advancedLevels[Math.floor(Math.random() * advancedLevels.length)];
+            generateMap(5, randomLevel);
             
-            // 開始計時
             timeElapsed = 0;
             document.getElementById('timer').innerText = "0 秒";
             timerInterval = setInterval(() => {
@@ -189,34 +189,34 @@
             }, 1000);
         }
 
-        function generateMap(rows, cols, disabledCells) {
-            mapData = { rows, cols, disabled: disabledCells };
+        function generateMap(size, lockedCells) {
+            mapData = { size, locked: lockedCells };
             const container = document.getElementById('map-container');
             container.innerHTML = '';
-            container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            container.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             
-            // 計算適合的大小
-            const cellSize = currentMode === 'beginner' ? 80 : 60;
+            const cellSize = size === 4 ? 75 : 60; // 配合螢幕調整大小
 
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.style.width = `${cellSize}px`;
                     cell.style.height = `${cellSize}px`;
                     cell.id = `cell_${r}_${c}`;
                     
-                    // 檢查是否為挖空區塊
-                    const isDisabled = disabledCells.some(d => d[0] === r && d[1] === c);
-                    if (isDisabled) {
-                        cell.classList.add('disabled');
+                    // 檢查是否為鎖定提示格
+                    const lockedInfo = lockedCells.find(d => d.r === r && d.c === c);
+                    if (lockedInfo) {
+                        cell.classList.add('locked');
+                        cell.style.backgroundColor = lockedInfo.color;
+                        cell.dataset.color = lockedInfo.color;
                     } else {
                         cell.onclick = () => colorCell(cell);
                     }
                     container.appendChild(cell);
                 }
             }
-            // 清除之前的錯誤訊息與顏色選擇
             document.getElementById('error-msg').style.display = 'none';
             currentColor = "";
             document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
@@ -229,59 +229,60 @@
         }
 
         function colorCell(cell) {
-            if (!currentColor) return alert("請先從下方選擇一種顏色！");
+            if (cell.classList.contains('locked')) return; // 鎖定格不能改
+            if (!currentColor) return alert("請先從下方點選一種顏色當顏料！");
             cell.style.backgroundColor = currentColor;
             cell.dataset.color = currentColor;
         }
 
         function checkWin() {
             const errorMsg = document.getElementById('error-msg');
+            const size = mapData.size;
             let allFilled = true;
-            let ruleBroken = false;
 
-            for (let r = 0; r < mapData.rows; r++) {
-                for (let c = 0; c < mapData.cols; c++) {
-                    const cell = document.getElementById(`cell_${r}_${c}`);
-                    if (cell.classList.contains('disabled')) continue;
-
-                    const cellColor = cell.dataset.color;
-                    if (!cellColor) {
+            // 檢查是否全部填滿
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (!document.getElementById(`cell_${r}_${c}`).dataset.color) {
                         allFilled = false;
-                        continue;
-                    }
-
-                    // 檢查右邊 (共用邊界)
-                    if (c + 1 < mapData.cols) {
-                        const rightCell = document.getElementById(`cell_${r}_${c+1}`);
-                        if (!rightCell.classList.contains('disabled') && rightCell.dataset.color === cellColor) {
-                            ruleBroken = true;
-                        }
-                    }
-                    // 檢查下方 (共用邊界)
-                    if (r + 1 < mapData.rows) {
-                        const bottomCell = document.getElementById(`cell_${r+1}_${c}`);
-                        if (!bottomCell.classList.contains('disabled') && bottomCell.dataset.color === cellColor) {
-                            ruleBroken = true;
-                        }
                     }
                 }
             }
-
             if (!allFilled) {
-                errorMsg.innerText = "還有區塊沒塗到顏色喔！";
-                errorMsg.style.display = "block";
+                showError("還有格子空著喔！請填滿所有格子。");
                 return;
             }
-            if (ruleBroken) {
-                errorMsg.innerText = "❌ 挑戰失敗：有相鄰(共用邊界)的區塊顏色相同！";
-                errorMsg.style.display = "block";
-                return;
+
+            // 檢查行 (Row) 是否有重複
+            for (let r = 0; r < size; r++) {
+                let colorsInRow = new Set();
+                for (let c = 0; c < size; c++) {
+                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
+                    if (colorsInRow.has(color)) {
+                        showError(`❌ 錯誤：第 ${r+1} 橫行出現了重複的顏色！`);
+                        return;
+                    }
+                    colorsInRow.add(color);
+                }
+            }
+
+            // 檢查列 (Column) 是否有重複
+            for (let c = 0; c < size; c++) {
+                let colorsInCol = new Set();
+                for (let r = 0; r < size; r++) {
+                    let color = document.getElementById(`cell_${r}_${c}`).dataset.color;
+                    if (colorsInCol.has(color)) {
+                        showError(`❌ 錯誤：第 ${c+1} 直列出現了重複的顏色！`);
+                        return;
+                    }
+                    colorsInCol.add(color);
+                }
             }
 
             // 成功過關
             errorMsg.style.display = "none";
             if (currentMode === 'beginner') {
-                alert("🎉 熱身局過關！接下來進入地獄局（開始計時）！");
+                alert("🎉 熱身局完美破解！深呼吸，真正的地獄局要開始了！");
                 startAdvanced();
             } else {
                 clearInterval(timerInterval);
@@ -289,25 +290,33 @@
             }
         }
 
+        function showError(msg) {
+            const errorMsg = document.getElementById('error-msg');
+            errorMsg.innerText = msg;
+            errorMsg.style.display = "block";
+            // 讓錯誤訊息抖動一下吸引注意
+            errorMsg.style.transform = "translateX(-5px)";
+            setTimeout(() => errorMsg.style.transform = "translateX(5px)", 100);
+            setTimeout(() => errorMsg.style.transform = "translateX(0)", 200);
+        }
+
         function saveAndShowResult() {
             switchScreen('game-screen', 'result-screen');
-            document.getElementById('final-time-display').innerText = `你的時間：${timeElapsed} 秒`;
+            document.getElementById('final-time-display').innerText = `地獄局完成時間：${timeElapsed} 秒`;
 
-            // 存入 LocalStorage
-            let leaderboard = JSON.parse(localStorage.getItem('fourColorLeaderboard')) || [];
+            let leaderboard = JSON.parse(localStorage.getItem('sudokuColorLeaderboard')) || [];
             leaderboard.push({ class: player.class, id: player.id, time: timeElapsed });
-            
-            // 排序 (時間短的在前面) 並取前 5 名
             leaderboard.sort((a, b) => a.time - b.time);
             leaderboard = leaderboard.slice(0, 5);
-            localStorage.setItem('fourColorLeaderboard', JSON.stringify(leaderboard));
+            localStorage.setItem('sudokuColorLeaderboard', JSON.stringify(leaderboard));
 
-            // 顯示排行榜
             const tbody = document.getElementById('leaderboard-body');
             tbody.innerHTML = '';
             leaderboard.forEach((entry, index) => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${index + 1}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
+                // 前三名加上獎盃圖案
+                let rankStr = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1;
+                tr.innerHTML = `<td>${rankStr}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
                 tbody.appendChild(tr);
             });
         }
