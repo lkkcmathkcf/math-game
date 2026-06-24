@@ -368,24 +368,39 @@
             setTimeout(() => errorMsg.style.transform = "translateX(0)", 200);
         }
 
-        function saveAndShowResult(finalTime) {
+async function saveAndShowResult(finalTime) {
             switchScreen('game-screen', 'result-screen');
             document.getElementById('final-time-display').innerText = `你的成績：${finalTime} 秒`;
-
-            let leaderboard = JSON.parse(localStorage.getItem('sudokuLeaderboard')) || [];
-            leaderboard.push({ class: player.class, id: player.id, time: finalTime });
-            leaderboard.sort((a, b) => a.time - b.time);
-            leaderboard = leaderboard.slice(0, 5);
-            localStorage.setItem('sudokuLeaderboard', JSON.stringify(leaderboard));
-
+            
             const tbody = document.getElementById('leaderboard-body');
-            tbody.innerHTML = '';
-            leaderboard.forEach((entry, index) => {
-                const tr = document.createElement('tr');
-                let rankStr = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1;
-                tr.innerHTML = `<td>${rankStr}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
-                tbody.appendChild(tr);
-            });
+            // 顯示載入中的動畫文字
+            tbody.innerHTML = '<tr><td colspan="4">📡 成績上傳與載入排行榜中...</td></tr>';
+
+            // 這裡已經換成你的專屬網址了！
+            const webAppUrl = "https://script.google.com/macros/s/AKfycbw1MXFE3OfF2KCzHdEEU9RH8iKKcXNPCpmvbJHqou70uv2gSH-WFARO2MAgAlbvbhvgPA/exec"; 
+            
+            // 將玩家成績夾在網址後面送出
+            const url = `${webAppUrl}?class=${encodeURIComponent(player.class)}&id=${encodeURIComponent(player.id)}&time=${finalTime}`;
+
+            try {
+                // 等待雲端處理並回傳 Top 10 資料
+                const response = await fetch(url);
+                const leaderboard = await response.json();
+
+                tbody.innerHTML = ''; // 清空載入中文字
+                
+                // 將前 10 名顯示在畫面上
+                leaderboard.forEach((entry, index) => {
+                    const tr = document.createElement('tr');
+                    let rankStr = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1;
+                    tr.innerHTML = `<td>${rankStr}</td><td>${entry.class}</td><td>${entry.id}</td><td>${entry.time}</td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                // 如果學校網路不穩，會顯示錯誤提示
+                tbody.innerHTML = '<tr><td colspan="4" style="color:red;">❌ 網路連線失敗，無法取得排行榜</td></tr>';
+                console.error("雲端存取錯誤:", error);
+            }
         }
 
         function switchScreen(hideId, showId) {
