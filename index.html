@@ -84,7 +84,7 @@
                 <li>帶有 🔒 的格子是開局提示，無法更改。</li>
                 <li>💡 填錯時，可以點擊 🧽 橡皮擦把格子塗回白色。</li>
             </ul>
-            <p>第一關 4x4 熱身。第二關 5x5 進階挑戰，<span class="highlight">限時 1 分 30 秒</span>，超時未完成將記錄為 90 秒！</p>
+            <p>第一關 4x4 熱身。第二關 5x5 進階挑戰，<span class="highlight">限時 120 秒 (2分鐘)</span>，超時未完成將記錄為 120 秒！</p>
         </div>
         <p style="color: #7f8c8d;">進入遊戲倒數：<span id="loading-time">10</span> 秒</p>
         <button class="btn-skip" onclick="startBeginner()">跳過說明直接開始</button>
@@ -115,7 +115,7 @@
         <h1 id="result-title">🎉 挑戰結束！</h1>
         <h2 id="final-time-display">你的成績：-- 秒</h2>
         
-        <h3>🏆 英雄榜 (Top 5)</h3>
+        <h3>🏆 英雄榜 (Top 10)</h3>
         <table>
             <thead>
                 <tr><th>名次</th><th>班別</th><th>學號</th><th>時間 (秒)</th></tr>
@@ -132,7 +132,7 @@
         let timeElapsed = 0;
         let timerInterval;
         let mapData = { size: 0 };
-        const MAX_TIME = 90; 
+        const MAX_TIME = 120; // 已改為 120 秒
         let loadTimer;
 
         // 數獨生成核心演算法
@@ -253,7 +253,7 @@
                 
                 if (timeElapsed >= MAX_TIME) {
                     clearInterval(timerInterval);
-                    alert("⏳ 時間到！未能在限時內完成，記錄為 90 秒。");
+                    alert("⏳ 時間到！未能在限時內完成，記錄為 120 秒。");
                     document.getElementById('result-title').innerText = "⏳ 時間到！";
                     saveAndShowResult(MAX_TIME);
                 }
@@ -350,7 +350,7 @@
 
             document.getElementById('error-msg').style.display = "none";
             if (currentMode === 'beginner') {
-                alert("🎉 熱身局成功！接下來進入進階局（限時 90 秒）！");
+                alert("🎉 熱身局成功！接下來進入進階局（限時 120 秒）！");
                 startAdvanced();
             } else {
                 clearInterval(timerInterval);
@@ -368,7 +368,8 @@
             setTimeout(() => errorMsg.style.transform = "translateX(0)", 200);
         }
 
-async function saveAndShowResult(finalTime) {
+        // --- 雲端排行榜上傳與讀取功能 ---
+        async function saveAndShowResult(finalTime) {
             switchScreen('game-screen', 'result-screen');
             document.getElementById('final-time-display').innerText = `你的成績：${finalTime} 秒`;
             
@@ -376,7 +377,7 @@ async function saveAndShowResult(finalTime) {
             // 顯示載入中的動畫文字
             tbody.innerHTML = '<tr><td colspan="4">📡 成績上傳與載入排行榜中...</td></tr>';
 
-            // 這裡已經換成你的專屬網址了！
+            // 你的專屬 Google Apps Script 網址
             const webAppUrl = "https://script.google.com/macros/s/AKfycbw1MXFE3OfF2KCzHdEEU9RH8iKKcXNPCpmvbJHqou70uv2gSH-WFARO2MAgAlbvbhvgPA/exec"; 
             
             // 將玩家成績夾在網址後面送出
